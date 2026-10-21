@@ -1,0 +1,45 @@
+spring:
+  jpa:
+    open-in-view: false
+  application:
+    name: wallet-service
+  profiles:
+    active: local
+  datasource:
+    hikari:
+      initialization-fail-timeout: 60000
+
+logging:
+  level:
+    root: INFO
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%-5level) [corrId=%X{correlationId:-N/A}] [%clr(${spring.application.name}){cyan}] %clr([%thread]){yellow} %clr(%logger{36}){blue} - %msg%n"
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: 1.0
+
+  opentelemetry:
+    resource-attributes:
+      service.name: wallet-service
+    tracing:
+      export:
+        otlp:
+          endpoint: http://jaeger:4318/v1/traces
+
+  otlp:
+    metrics:
+      export:
+        enabled: false
