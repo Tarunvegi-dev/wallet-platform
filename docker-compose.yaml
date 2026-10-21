@@ -1,0 +1,102 @@
+services:
+  postgres-wallet:
+    image: postgres:16
+    container_name: wallet_postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WALLET_DB_USERNAME} -d wallet_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_DB: wallet_db
+      POSTGRES_USER: ${WALLET_DB_USERNAME}
+      POSTGRES_PASSWORD: ${WALLET_DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_wallet_data:/var/lib/postgresql/data
+  
+  postgres-payment:
+    image: postgres:16
+    container_name: payment_postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PAYMENT_DB_USERNAME} -d payment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: ${PAYMENT_DB_USERNAME}
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_payment_data:/var/lib/postgresql/data
+
+  wallet-service:
+    depends_on:
+      postgres-wallet:
+        condition: service_healthy
+    build:
+      context: ./wallet-service
+      dockerfile: Dockerfile
+    image: wallet-service:1.0
+    container_name: wallet_service
+    environment:
+      DB_URL: jdbc:postgresql://postgres-wallet:5432/wallet_db
+      DB_USERNAME: ${WALLET_DB_USERNAME}
+      DB_PASSWORD: ${WALLET_DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    ports:
+      - "8080:8080"
+
+  payment-service:
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    image: payment-service:1.0
+    container_name: payment_service
+    environment:
+      DB_URL: jdbc:postgresql://postgres-payment:5432/payment_db
+      DB_USERNAME: ${PAYMENT_DB_USERNAME}
+      DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    ports:
+      - "8081:8081"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    volumes:
+        - ./jaeger-ui.json:/etc/jaeger/ui-config.json
+    environment:
+      - JAEGER_UI_CONFIG_FILE=/etc/jaeger/ui-config.json
+
+volumes:
+  postgres_wallet_data:
+  postgres_payment_data:
